@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<meta charset="UTF-8">
+
+<script src="https://unpkg.com/jspdf@1.5.3/dist/jspdf.min.js"></script>
+
+<body>
+
+<h2>Optimum gain rectangular horn antenna calculator</h2>
+
+<p>
+Required gain, dBi: <input id="gain" type="number" value="15"><br/>
+Frequency, GHz: <input id="frequency" type="number" value="10.5"><br/>
+Waveguide wide side, mm: <input id="a" type="number" value="22.86"><br/>
+Waveguide narrow side, mm: <input id="b" type="number" value = "10.16"><br/>
+</p>
+
+<button onclick="CalculateHorn()">Calculate</button>
+
+<p>For used design method see [1]</p>
+
+<p>
+Horn length, mm: <input id="length" type="number"><br/>
+Horn wide side, mm: <input id="a1" type="number"><br/>
+Horn narrow side, mm: <input id="b1" type="number"><br/>
+<input type="checkbox" id="centerjoint" name="centerjoint" checked>
+<label for="centerjoint"> Create template joint on a face center.</label><br>
+</p>
+
+<button onclick="javascript:GetPDF()">Create pdf with template</button>
+
+<p id="output"></p>
+
+<p>1 K.T. Selvan Accurate design method for optimum gain pyramidal horns</p>
+<script>
+
+var G, a, b, a1, b1; //, AngleH, AngleE
+var SlopeAngleH, SlopeAngleE;
+
+const Field=10;
+
+function CalculateHorn() {
+  let text;
+  var G; //Required gain in linear form
+  var Lambda; // Wavelength in meters
+  var a; // Waveguide wide side in meters
+  var b; // Waveguide narrow side in meters
+  var g, r, q, u1, z1, z2, a1, a2, le, lh, test, pe, ph, AngleH, AngleE;
+  
+  // Fetch the data
+  G = 10 ** (document.getElementById("gain").value/10);
+  //Lambda = 2.98e8 / (document.getElementById("frequency").value*1e9);
+  Lambda = 3.00e8 / (document.getElementById("frequency").value*1e9);
+  a = document.getElementById("a").value / 1000;
+  b = document.getElementById("b").value / 1000;
+  
+  //Do the math. Variable names meet [1].
+  g = G * (Lambda ** 2) / 6.464;
+  r = 1/3*g**2*(2/3*a**2-b**2);
+  q = 2/9*g*(4*g-a*b);
+  u1 = ( Math.sqrt(q**3 + r**2) + r)**(1/3) - ( Math.sqrt(q**3 + r**2) - r)**(1/3);
+  z1 = -b/2 + (b**2/4 + u1)**(1/2);
+  z2 = (u1**2/4 + 2/3*g**2)**(1/2)-u1/2;
+  b1 = (-z1 + (z1**2+4*z2)**(1/2))/2;
+  a1 = g / b1;
+  le = b1/2 * Math.sqrt ( 1 + (b1/Lambda)**2)
+  lh = a1 * Math.sqrt ( 1/4 + (a1/(3*Lambda))**2)
+  l2 = Math.sqrt (lh**2	-(a1/2)**2);
+  l1 = Math.sqrt (le**2-(b1/2)**2);
+  AngleH = Math.asin((a1/2)/lh)*180/Math.PI;
+  AngleE = Math.asin((b1/2)/le)*180/Math.PI;
+  pe = l1*(b1-b)/b1;
+  ph = l2*(a1-a)/a1;
+  
+  //text = document.getElementById("gain").value + " " + document.getElementById("frequency").value;
+  //text = "G=" + G + " Lamda=" + Lambda + " a=" + a + " b=" + b + " g=" + g + " r=" + r + " q=" + q + " u1=" + u1 + " z1=" + z1 + " z2=" + z2 + " b1=" + b1 + " a1=" + a1 + " le=" + le + " lh=" + lh + " l12=" + l12;
+  text = " b1=" + b1*1000 + "<br/>a1=" + a1*1000 + "<br/>le=" + le*1000 + "<br/>lh=" + lh*1000 + "<br/>pe=" + pe*1000 + "<br/>ph=" + ph*1000 + "<br/>l1=" + l1*1000 + "<br/>l2=" + l2*1000 + "<br/>AngleH=" + AngleH + "<br/>AngleE=" + AngleE + "<br/>";
+  //+ " test1=" + test1 + " test2=" + test2;
+  console.log (text);
+  //document.getElementById("output").innerHTML = text;
+  document.getElementById("a1").value = (a1*1000).toFixed(2);
+  document.getElementById("b1").value = (b1*1000).toFixed(2);
+  document.getElementById("length").value = (pe*1000).toFixed(2);
+}
+
+function GetPDF() {
+// Default export is a4 paper, portrait, using millimeters for units
+ 
+  var AngleH, AngleE;
+  var SlopeLengthH, SlopeLengthE;
+    
+  //var In = { x:0, y:0 };
+  //var Ext = { x:0, y:0 };
+  var Edge = { InX:0, InY:0, ExtX:0, ExtY:0 };
+  var ExtremeValues = { MinX:0, MinY:0, MaxX:0, MaxY:0 };
+
+  G = Number( document.getElementById("gain").value );
+  Frequency = Number (document.getElementById("frequency").value );
+  a = Number( document.getElementById("a").value );
+  b = Number( document.getElementById("b").value );
+  a1 = Number( document.getElementById("a1").value );
+  b1 = Number( document.getElementById("b1").value );
+  length = Number (document.getElementById("length").value);
+  
+  AngleH = Math.atan((a1/2-a/2)/length);
+  AngleE = Math.atan((b1/2-b/2)/length);
+  
+  SlopeLengthH = Math.sqrt ( length**2 + (b1/2-b/2)**2);
+  SlopeLengthE = Math.sqrt ( length**2 + (a1/2-a/2)**2);
+  
+  SlopeAngleH = Math.atan((a1/2-a/2)/SlopeLengthH);
+  SlopeAngleE = Math.atan((b1/2-b/2)/SlopeLengthE);
+  
+  Edge.ExtX = 0; Edge.ExtY = 0; // This is a starting point
+   
+  // Let's do an empty run to identify draw area size;
+  ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+    if (document.getElementById("centerjoint").checked)
+	{
+	Edge.InX = Edge.ExtX;
+	Edge.InY = Edge.ExtY + SlopeLengthH; 
+	Edge = ProceedFacet ( 0, Edge, "firsthalfwide", false);
+	}
+  else
+	{
+	Edge.InX = Edge.ExtX + a1/2 - a/2;
+	Edge.InY = Edge.ExtY + SlopeLengthH;
+	Edge = ProceedFacet ( 0, Edge, "firstwide", false);
+	}
+  ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+  Edge = ProceedFacet ( 0, Edge, "narrow", false);
+  ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+  Edge = ProceedFacet ( 0, Edge, "wide", false);
+  ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+  Edge = ProceedFacet ( 0, Edge, "narrow", false);
+  ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+  if (document.getElementById("centerjoint").checked)
+	{
+	Edge = ProceedFacet ( 0, Edge, "lasthalfwide", false);
+	ExtremeValues = ProceedExtremeValues ( ExtremeValues, Edge );
+	}
+  
+  console.log (ExtremeValues);
+  
+  var PaperFormat=LookForBestPageSize (ExtremeValues);
+  console.log (PaperFormat);
+  const doc = new jsPDF (PaperFormat.orientation, "mm", PaperFormat.name);
+  
+  Edge.ExtX = Field - ExtremeValues.MinX; Edge.ExtY = Field - ExtremeValues.MinY; // This is a starting point
+  
+  if (document.getElementById("centerjoint").checked)
+	{
+	Edge.InX = Edge.ExtX;
+	Edge.InY = Edge.ExtY + SlopeLengthH; 
+	Edge = ProceedFacet ( doc, Edge, "firsthalfwide", true);
+	}
+  else
+	{
+	Edge.InX = Edge.ExtX + a1/2 - a/2;
+	Edge.InY = Edge.ExtY + SlopeLengthH;
+	Edge = ProceedFacet ( doc, Edge, "firstwide", true);
+	}
+  Edge = ProceedFacet ( doc, Edge, "narrow", true);
+  Edge = ProceedFacet ( doc, Edge, "wide", true);
+  Edge = ProceedFacet ( doc, Edge, "narrow", true);
+  if (document.getElementById("centerjoint").checked)
+	{
+	Edge = ProceedFacet ( doc, Edge, "lasthalfwide", true);
+	}
+  
+  text = " b1=" + b1 + "<br/>a1=" + a1 + "<br/>a=" + a + "<br/>b=" + b + "<br/>length=" + length + "<br/>AngleH=" + AngleH + "<br/>AngleE=" + AngleE + "<br/>";
+  console.log (text);
+  console.log (Edge);
+
+  doc.setFontSize ( 12 );
+  doc.text( G + "dBi horn antenna", 30+a1, 10);
+  doc.setFontSize ( 9 );
+  doc.text( ["Gain: " + G + "dBi at " + Frequency + " GHz", "Length: " + length + "mm", "Aperture: " + a1 +"x" + b1 + " mm", "Waveguide size: " + a +"x" + b + " mm"], 30+a1, 20);
+  
+  DrawScale ( doc, ExtremeValues.MaxX + Field, ExtremeValues.MaxY + Field+3, 2, 50 );
+  
+  doc.save("a4.pdf");
+}
+
+function ProceedFacet (doc, LeftEdge, type, drawflag)
+{
+var StartAngle;
+var RightEdge = { InX:0, InY:0, ExtX:0, ExtY:0 };
+
+StartAngle = Math.atan ( (LeftEdge.ExtX - LeftEdge.InX)/(LeftEdge.InY - LeftEdge.ExtY) );
+if ((LeftEdge.InY - LeftEdge.ExtY) < 0 )
+	StartAngle += Math.PI;
+
+switch ( type )
+	{
+case "firsthalfwide":
+	RightEdge.InX = LeftEdge.InX + a/2*Math.sin (StartAngle+Math.PI/2);
+	RightEdge.InY = LeftEdge.InY - a/2*Math.cos (StartAngle+Math.PI/2);
+	RightEdge.ExtX = LeftEdge.ExtX + a1/2*Math.sin (StartAngle+Math.PI/2);
+	RightEdge.ExtY = LeftEdge.ExtY - a1/2*Math.cos (StartAngle+Math.PI/2);
+	break;
+case "firstwide":
+case "wide":
+	RightEdge.InX = LeftEdge.InX + a*Math.sin (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.InY = LeftEdge.InY - a*Math.cos (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.ExtX = LeftEdge.ExtX + a1*Math.sin (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.ExtY = LeftEdge.ExtY - a1*Math.cos (StartAngle+SlopeAngleH+Math.PI/2);
+	break;
+case "narrow":
+	RightEdge.InX = LeftEdge.InX + b*Math.sin (StartAngle+SlopeAngleE+Math.PI/2);
+	RightEdge.InY = LeftEdge.InY - b*Math.cos (StartAngle+SlopeAngleE+Math.PI/2);
+	RightEdge.ExtX = LeftEdge.ExtX + b1*Math.sin (StartAngle+SlopeAngleE+Math.PI/2);
+	RightEdge.ExtY = LeftEdge.ExtY - b1*Math.cos (StartAngle+SlopeAngleE+Math.PI/2);
+	break;
+case "lasthalfwide":
+	RightEdge.InX = LeftEdge.InX + a/2*Math.sin (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.InY = LeftEdge.InY - a/2*Math.cos (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.ExtX = LeftEdge.ExtX + a1/2*Math.sin (StartAngle+SlopeAngleH+Math.PI/2);
+	RightEdge.ExtY = LeftEdge.ExtY - a1/2*Math.cos (StartAngle+SlopeAngleH+Math.PI/2);
+	break;	
+	}
+if (drawflag)
+	{
+	doc.line ( LeftEdge.ExtX, LeftEdge.ExtY, LeftEdge.InX, LeftEdge.InY);
+	doc.line ( LeftEdge.InX, LeftEdge.InY, RightEdge.InX, RightEdge.InY);
+	doc.line ( LeftEdge.ExtX, LeftEdge.ExtY, RightEdge.ExtX, RightEdge.ExtY);
+	doc.line ( RightEdge.ExtX, RightEdge.ExtY, RightEdge.InX, RightEdge.InY);
+	}
+return RightEdge;
+}
+
+function ProceedExtremeValues (ExtremeValues, Edge)
+{
+if ( Edge.ExtX > ExtremeValues.MaxX ) { ExtremeValues.MaxX = Edge.ExtX; }
+if ( Edge.InX > ExtremeValues.MaxX ) { ExtremeValues.MaxX = Edge.InX; }
+if ( Edge.ExtX < ExtremeValues.MinX ) { ExtremeValues.MinX = Edge.ExtX; }
+if ( Edge.InX < ExtremeValues.MinX ) { ExtremeValues.MinX = Edge.InX; }
+if ( Edge.ExtY > ExtremeValues.MaxY ) { ExtremeValues.MaxY = Edge.ExtY; }
+if ( Edge.InY > ExtremeValues.MaxY ) { ExtremeValues.MaxY = Edge.InY; }
+if ( Edge.ExtY < ExtremeValues.MinY ) { ExtremeValues.MinY = Edge.ExtY; }
+if ( Edge.InY < ExtremeValues.MinY ) { ExtremeValues.MinY = Edge.InY; }
+
+return ExtremeValues;
+}
+
+function LookForBestPageSize (ExtremeValues)
+{
+var XSize = ExtremeValues.MaxX-ExtremeValues.MinX + Field*2;
+var YSize = ExtremeValues.MaxY-ExtremeValues.MinY + Field*2;
+var SelectedPaperFormat;
+
+PaperFormat = [ 
+				{name:"a3", orientation:"landscape", xsize:420,  ysize:297},
+				{name:"a3", orientation:"portrait", xsize:297,  ysize:420},
+				{name:"a4", orientation:"landcape", xsize:297,  ysize:210},
+				{name:"a4", orientation:"portrait", xsize:210,  ysize:297}];
+
+SelectedPaperFormat = PaperFormat[0]; // It's to avoid undefined paper format in case no one matches.
+
+console.log ( XSize );
+console.log ( YSize );
+for (let i in PaperFormat)
+	{
+	console.log (PaperFormat[i]);
+	if ( PaperFormat[i].xsize >= XSize && PaperFormat[i].ysize > YSize )
+		SelectedPaperFormat = PaperFormat[i];
+	}
+return SelectedPaperFormat;
+}
+
+function DrawScale (doc, x, y, width, length)
+{
+
+doc.setFontSize ( 9 );
+
+for (let i=0 ; i < length/10 ; i++)
+	{
+	doc.rect (x+i*10, y, 10, width, (i%2) ? 'S' : 'F' );
+
+	}
+doc.text ( "mm" , x-5, y-1, 'center');	
+for (let i=0 ; i < length/10+1 ; i++)
+	{
+	doc.text ( (i*10).toString() , x+i*10, y-1, 'center');
+	}
+
+}
+
+</script>
+
+</body>
+</html>
